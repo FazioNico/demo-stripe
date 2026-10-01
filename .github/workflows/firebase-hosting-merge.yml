@@ -28,5 +28,5 @@ jobs:
           cat > functions/env.config.js << 'EOF'
           export const STRIPE_APIKEY = "${{ secrets.STRIPE_APIKEY }}";
           EOF
-      - run: npm run ci && firebase deploy --only functions
+      - run: npm ci && firebase deploy --only functions
 
