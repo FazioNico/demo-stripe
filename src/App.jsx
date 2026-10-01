@@ -18,8 +18,7 @@ function App() {
     window.location.href = url;
   };
 
-  const handleStripeSubscription = async () => {
-    const productId = "prod_VMNQ1SRCuUUxVw";
+  const handleStripeSubscription = async (productId) => {
     const response = await fetch(CREATE_SUBSCRIPTION_SESSION_URL + productId, {
       method: "POST",
     });
@@ -32,7 +31,12 @@ function App() {
       {productList.length > 0 ? (
         <ul>
           {productList.map((product) => (
-            <li>{product.name}</li>
+            <li>
+              {product.name} 
+              <button onClick={() => {
+                handleStripeSubscription(product.id);
+              }}>buy</button>
+            </li>
           ))}
         </ul>
       ) : (
@@ -49,7 +53,7 @@ function App() {
 
       <button
         onClick={() => {
-          void handleStripeSubscription();
+          void handleStripeSubscription('prod_VMNQ1SRCuUUxVw');
         }}
       >
         buy subscription product with stripe
