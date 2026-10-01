@@ -7,13 +7,14 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-const {setGlobalOptions} = require("firebase-functions");
-const {onRequest} = require("firebase-functions/https");
-const {defineSecret} = require("firebase-functions/params");
+const { setGlobalOptions } = require("firebase-functions");
+const { onRequest } = require("firebase-functions/https");
+// const { defineSecret } = require("firebase-functions/params");
 const logger = require("firebase-functions/logger");
 const Stripe = require("stripe");
+const { STRIPE_APIKEY } = require("./env.config");
 
-const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
+const stripeSecretKey = STRIPE_APIKEY; // defineSecret("STRIPE_SECRET_KEY");
 
 // For cost control, you can set the maximum number of containers that can be
 // running at the same time. This helps mitigate the impact of unexpected
@@ -31,90 +32,92 @@ setGlobalOptions({ maxInstances: 10 });
 // https://firebase.google.com/docs/functions/get-started
 
 exports.helloWorld = onRequest((request, response) => {
-  logger.info("Hello logs!", {structuredData: true});
+  logger.info("Hello logs!", { structuredData: true });
   response.send("Hello from Firebase!");
 });
 
 exports.createStripeSession = onRequest(
-    {cors: true, secrets: [stripeSecretKey]},
-    async (request, response) => {
-      if (request.method !== "POST") {
-        response.status(405).send("Method Not Allowed");
-        return;
-      }
+  { cors: true },
+  async (request, response) => {
+    if (request.method !== "POST") {
+      response.status(405).send("Method Not Allowed");
+      return;
+    }
 
-      try {
-        const stripe = new Stripe(stripeSecretKey.value());
-        const origin = request.get("origin") || "http://localhost:5173";
+    try {
+      const stripe = new Stripe(stripeSecretKey);
+      const origin = request.get("origin") || "http://localhost:5173";
 
-        const session = await stripe.checkout.sessions.create({
-          mode: "payment",
-          line_items: [{
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        line_items: [
+          {
             quantity: 1,
             price_data: {
               currency: "chf",
               unit_amount: 2000,
-              product_data: {name: "Demo purchase"},
+              product_data: { name: "Demo purchase" },
             },
-          }],
-          success_url: `${origin}/?payment=success`,
-          cancel_url: `${origin}/?payment=cancelled`,
-        });
+          },
+        ],
+        success_url: `${origin}/?payment=success`,
+        cancel_url: `${origin}/?payment=cancelled`,
+      });
 
-        response.json({url: session.url});
-      } catch (error) {
-        logger.error("Stripe session creation failed", error);
-        response.status(500).json({error: "Unable to create Stripe session"});
-      }
-    },
+      response.json({ url: session.url });
+    } catch (error) {
+      logger.error("Stripe session creation failed", error);
+      response.status(500).json({ error: "Unable to create Stripe session" });
+    }
+  },
 );
 
 exports.createStripeSubscriptionSession = onRequest(
-    {cors: true, secrets: [stripeSecretKey]},
-    async (request, response) => {
-      if (request.method !== "POST") {
-        response.status(405).send("Method Not Allowed");
+  { cors: true },
+  async (request, response) => {
+    if (request.method !== "POST") {
+      response.status(405).send("Method Not Allowed");
+      return;
+    }
+
+    const productId = request.query.id;
+
+    if (!productId) {
+      response.status(404).send("Product not found");
+      return;
+    }
+
+    try {
+      const stripe = new Stripe(stripeSecretKey);
+      const origin = request.get("origin") || "http://localhost:5173";
+
+      const prices = await stripe.prices.list({
+        product: productId,
+        active: true,
+        type: "recurring",
+        limit: 1,
+      });
+
+      if (prices.data.length === 0) {
+        logger.error("No active recurring price for product", { productId });
+        response.status(404).json({ error: "No recurring price found" });
         return;
       }
 
-      const productId = request.query.id;
+      const session = await stripe.checkout.sessions.create({
+        mode: "subscription",
+        allow_promotion_codes: true,
+        line_items: [{ price: prices.data[0].id, quantity: 1 }],
+        success_url: `${origin}/?subscription=success&session_id={CHECKOUT_SESSION_ID}`, // {CHECKOUT_SESSION_ID} coming form Stripe
+        cancel_url: `${origin}/?subscription=cancelled`,
+      });
 
-      if (!productId) {
-        response.status(404).send("Product not found");
-        return;
-      }
-
-      try {
-        const stripe = new Stripe(stripeSecretKey.value());
-        const origin = request.get("origin") || "http://localhost:5173";
-
-        const prices = await stripe.prices.list({
-          product: productId,
-          active: true,
-          type: "recurring",
-          limit: 1,
-        });
-
-        if (prices.data.length === 0) {
-          logger.error("No active recurring price for product", {productId});
-          response.status(404).json({error: "No recurring price found"});
-          return;
-        }
-
-        const session = await stripe.checkout.sessions.create({
-          mode: "subscription",
-          allow_promotion_codes: true,
-          line_items: [{price: prices.data[0].id, quantity: 1}],
-          success_url: `${origin}/?subscription=success&session_id={CHECKOUT_SESSION_ID}`, // {CHECKOUT_SESSION_ID} coming form Stripe 
-          cancel_url: `${origin}/?subscription=cancelled`,
-        });
-
-        response.json({url: session.url});
-      } catch (error) {
-        logger.error("Stripe subscription session creation failed", error);
-        response.status(500).json({
-          error: "Unable to create Stripe subscription session",
-        });
-      }
-    },
+      response.json({ url: session.url });
+    } catch (error) {
+      logger.error("Stripe subscription session creation failed", error);
+      response.status(500).json({
+        error: "Unable to create Stripe subscription session",
+      });
+    }
+  },
 );
