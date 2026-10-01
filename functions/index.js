@@ -103,6 +103,7 @@ exports.createStripeSubscriptionSession = onRequest(
 
         const session = await stripe.checkout.sessions.create({
           mode: "subscription",
+          allow_promotion_codes: true,
           line_items: [{price: prices.data[0].id, quantity: 1}],
           success_url: `${origin}/?subscription=success&session_id={CHECKOUT_SESSION_ID}`, // {CHECKOUT_SESSION_ID} coming form Stripe 
           cancel_url: `${origin}/?subscription=cancelled`,
