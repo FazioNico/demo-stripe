@@ -28,5 +28,16 @@ jobs:
           cat > functions/env.config.js << 'EOF'
           export const STRIPE_APIKEY = "${{ secrets.STRIPE_APIKEY }}";
           EOF
-      - run: npm ci && firebase deploy --only functions
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install functions dependencies
+        run: npm ci
+        working-directory: functions
+      - name: Write Firebase credentials
+        run: echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_GENFT_6F456 }}' > "$RUNNER_TEMP/gcp-key.json"
+      - name: Deploy functions
+        run: npx --yes firebase-tools@latest deploy --only functions --project genft-6f456
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/gcp-key.json
 
