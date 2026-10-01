@@ -83,7 +83,7 @@ exports.createStripeSubscriptionSession = onRequest(
         response.status(404).send("Product not found");
         return;
       }
-      
+
       try {
         const stripe = new Stripe(stripeSecretKey.value());
         const origin = request.get("origin") || "http://localhost:5173";
@@ -104,7 +104,7 @@ exports.createStripeSubscriptionSession = onRequest(
         const session = await stripe.checkout.sessions.create({
           mode: "subscription",
           line_items: [{price: prices.data[0].id, quantity: 1}],
-          success_url: `${origin}/?subscription=success`,
+          success_url: `${origin}/?subscription=success&session_id={CHECKOUT_SESSION_ID}`, // {CHECKOUT_SESSION_ID} coming form Stripe 
           cancel_url: `${origin}/?subscription=cancelled`,
         });
 
